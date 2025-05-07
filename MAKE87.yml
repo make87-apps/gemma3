@@ -3,16 +3,21 @@ build_kit:
   version: latest
   target_architectures:
   - amd64
-  - arm64
 outbound_topics: []
 inbound_topics: []
-requester_endpoints: []
+requester_endpoints:
+- name: GET_IMAGE
+  requester_message_type: make87_messages.core.empty.Empty
+  provider_message_type: make87_messages.image.compressed.image_jpeg.ImageJPEG
 provider_endpoints:
-- name: EXAMPLE_ENDPOINT
+- name: IMAGE_QUESTION
   requester_message_type: make87_messages.text.text_plain.PlainText
   provider_message_type: make87_messages.text.text_plain.PlainText
 port_requirements: []
-peripheral_requirements: []
+peripheral_requirements:
+  - peripheral_type: GPU
+    name: GPU
+    constraints: null
 needs_host_network: false
 needs_privileged: false
 config:

@@ -8,8 +8,9 @@ version = "0.0.1"
 dependencies = [
   "make87",
   "make87_messages",
+  "ollama>=0.4.7,<1.0.0",
 ]
-description = "A small example package"
+description = "gemma3 wrapper for make87"
 readme = "README.md"
 requires-python = ">=3.9,<3.13"
 
