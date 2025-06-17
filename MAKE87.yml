@@ -1,4 +1,7 @@
 version: 1
+peripheral_requirements:
+  - peripheral_type: GPU
+    name: GPU
 interfaces:
   - name: zenoh-client
     protocol: zenoh
@@ -6,17 +9,20 @@ interfaces:
       name: zenoh-client
       protocol: TCP
       target_port: 7447
-    requesters:
-      - name: GET_IMAGE
-        request_spec:
-          make87_message: make87_messages.core.Empty
-        response_spec:
-          make87_message: make87_messages.image.compressed.image_jpeg.ImageJPEG
-        encoding: proto
+      publish_mode: Ingress
+      is_system_interface: false
+      is_dev_interface: false
     publishers:
       - name: IMAGE
         spec:
-          make87_message: make87_messages.image.compressed.image_jpeg.ImageJPEG
+          make87_message: make87_messages.image.compressed.image_jpeg.ImageJPEG:ro11zj
+        encoding: proto
+    requesters:
+      - name: GET_IMAGE
+        request_spec:
+          make87_message: make87_messages.core.Empty:9u7fab
+        response_spec:
+          make87_message: make87_messages.image.compressed.image_jpeg.ImageJPEG:ro11zj
         encoding: proto
   - name: mcp-server
     protocol: mcp
@@ -24,18 +30,18 @@ interfaces:
       name: mcp-server
       protocol: TCP
       target_port: 9988
+      publish_mode: Ingress
+      is_system_interface: false
+      is_dev_interface: false
     servers:
       - name: mcp-server
         spec:
           string: mcp/http
-container_config: { }
-config: { }
-peripheral_requirements:
-  - peripheral_type: GPU
-    name: GPU
-    constraints: null
+container_config: {}
+config: {}
 build:
   custom:
     dockerfile: build_kit/Dockerfile
     platforms:
       - linux/arm64
+      - linux/amd64
