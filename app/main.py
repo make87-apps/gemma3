@@ -19,7 +19,7 @@ class ImageAnalyzer:
         self.current_description = "no image seen yet."
 
         server = mcp.server.FastMCP(name="image_describer", host="0.0.0.0", port=9988)
-
+        self.server = server
         @server.tool(description="Ask what the current camera image shows with respect to the currently set prompt.")
         def get_camera_image_description() -> str:
             return self.current_description
