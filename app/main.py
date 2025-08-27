@@ -1,39 +1,57 @@
 import logging
+import threading
 
-import mcp
-from make87.interfaces.zenoh import ZenohInterface
-from make87_messages.core.empty_pb2 import Empty
-from make87_messages.image.compressed.image_jpeg_pb2 import ImageJPEG
-from make87.encodings import ProtobufEncoder
 import make87 as m87
-from ollama import chat, Client, Message, Image
+import mcp
+import zenoh.handlers
+from make87.interfaces.zenoh import ZenohInterface
+from make87_messages.image.compressed.image_jpeg_pb2 import ImageJPEG
+from ollama import Client, Message, Image
 
 logger = logging.getLogger(__name__)
 
 
-def main():
-    config = m87.config.load_config_from_env()
-    zenoh_interface = ZenohInterface(name="zenoh-client", make87_config=config)
-    image_getter = zenoh_interface.get_requester("GET_IMAGE")
-    client = Client()
+class ImageAnalyzer:
+    def __init__(self, model: str = "gemma3"):
+        self.client = Client()
+        self.model = model
+        self.current_prompt = "Describe the content of the image in detail."
+        self.current_description = "no image seen yet."
 
-    server = mcp.server.FastMCP(name="image_describer", host="0.0.0.0", port=9988)
+        server = mcp.server.FastMCP(name="image_describer", host="0.0.0.0", port=9988)
 
-    @server.tool(description="Ask a question with respect to the current image captured by the camera.")
-    def ask_question_about_camera_frame(message: str) -> str:
+        @server.tool(description="Ask what the current camera image shows with respect to the currently set prompt.")
+        def get_camera_image_description() -> str:
+            return self.current_description
 
-        try:
-            response = image_getter.get(payload=ProtobufEncoder(message_type=Empty).encode(Empty()))
-            for r in response:
-                if r.ok is not None:
-                    image = ProtobufEncoder(message_type=ImageJPEG).decode(r.ok.payload.to_bytes())
+        @server.tool(description="Ask what the current camera image shows with respect to the currently set prompt.")
+        def set_analyzer_prompt(prompt: str) -> str:
+            self.current_prompt = prompt
+            return f"Set prompt to: {prompt}"
 
-                    response = client.chat(
+        self._server_thread = None
+
+        config = m87.config.load_config_from_env()
+        zenoh_interface = ZenohInterface(name="zenoh-client", make87_config=config)
+        # only safe latest image
+        self.subscriber = zenoh_interface.get_subscriber("IMAGE", handler=zenoh.handlers.RingChannel(capacity=1))
+
+    def run(self):
+        thr = threading.Thread(target=self.server.run, kwargs={"transport": "streamable-http"}, daemon=True)
+        thr.start()
+        self._server_thread = thr
+
+        while True:
+            try:
+                sample = self.subscriber.recv()
+                if sample and sample.payload:
+                    image = m87.encodings.ProtobufEncoder(message_type=ImageJPEG).decode(sample.payload.to_bytes())
+                    response = self.client.chat(
                         model="gemma3",
                         messages=[
                             Message(
                                 role="user",
-                                content=message,
+                                content=self.current_prompt,
                                 images=[Image(
                                     value=image.data
                                 )]
@@ -41,16 +59,33 @@ def main():
                         ],
                         options={"temperature": 0},  # Set temperature to 0 for more deterministic output
                     )
-                    return response.message.content
-                else:
-                    return str(r.err)
+                    self.current_description = response.message.content
+            except Exception as e:
+                logger.error(f"Error in main loop: {e}")
 
+    def analyze_image(self, image_data: bytes, question: str) -> str:
+        try:
+            response = self.client.chat(
+                model=self.model,
+                messages=[
+                    Message(
+                        role="user",
+                        content=question,
+                        images=[Image(value=image_data)]
+                    )
+                ],
+                options={"temperature": 0},  # Set temperature to 0 for more deterministic output
+            )
+            return response.message.content
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            return f"Error processing message: {e}"
+            logger.error(f"Error analyzing image: {e}")
+            return f"Error analyzing image: {e}"
 
 
-    server.run(transport="streamable-http")
+def main():
+    logging.basicConfig(level=logging.INFO)
+    analyzer = ImageAnalyzer(model="gemma3")
+    analyzer.run()
 
 
 if __name__ == "__main__":

@@ -12,17 +12,10 @@ interfaces:
       publish_mode: Ingress
       is_system_interface: false
       is_dev_interface: false
-    publishers:
+    subscribers:
       - name: IMAGE
         spec:
-          make87_message: make87_messages.image.compressed.image_jpeg.ImageJPEG:ro11zj
-        encoding: proto
-    requesters:
-      - name: GET_IMAGE
-        request_spec:
-          make87_message: make87_messages.core.Empty:9u7fab
-        response_spec:
-          make87_message: make87_messages.image.compressed.image_jpeg.ImageJPEG:ro11zj
+          make87_message: make87_messages.image.compressed.image_jpeg.ImageJPEG
         encoding: proto
   - name: mcp-server
     protocol: mcp
