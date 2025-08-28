@@ -31,19 +31,15 @@ class ImageAnalyzer:
 
         self._server_thread = None
 
-        config = m87.config.load_config_from_env()
-        zenoh_interface = ZenohInterface(name="zenoh-client", make87_config=config)
-        # only safe latest image
-        self.subscriber = zenoh_interface.get_subscriber("IMAGE", handler=zenoh.handlers.RingChannel(capacity=1))
-
     def run(self):
         thr = threading.Thread(target=self.server.run, kwargs={"transport": "streamable-http"}, daemon=True)
         thr.start()
         self._server_thread = thr
-
+        zenoh_interface = ZenohInterface(name="zenoh-client")
+        subscriber = zenoh_interface.get_subscriber("IMAGE", handler=zenoh.handlers.RingChannel(capacity=1))
         while True:
             try:
-                sample = self.subscriber.recv()
+                sample = subscriber.recv()
                 if sample and sample.payload:
                     image = m87.encodings.ProtobufEncoder(message_type=ImageJPEG).decode(sample.payload.to_bytes())
                     response = self.client.chat(
@@ -62,24 +58,6 @@ class ImageAnalyzer:
                     self.current_description = response.message.content
             except Exception as e:
                 logger.error(f"Error in main loop: {e}")
-
-    def analyze_image(self, image_data: bytes, question: str) -> str:
-        try:
-            response = self.client.chat(
-                model=self.model,
-                messages=[
-                    Message(
-                        role="user",
-                        content=question,
-                        images=[Image(value=image_data)]
-                    )
-                ],
-                options={"temperature": 0},  # Set temperature to 0 for more deterministic output
-            )
-            return response.message.content
-        except Exception as e:
-            logger.error(f"Error analyzing image: {e}")
-            return f"Error analyzing image: {e}"
 
 
 def main():
